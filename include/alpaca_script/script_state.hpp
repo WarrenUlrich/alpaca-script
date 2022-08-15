@@ -59,8 +59,8 @@ public:
     state = std::make_unique<State>(std::forward<Args>(args)...);
   }
 
-  template <typename State> void set_state(State &&state) {
-    this->state = std::make_unique<State>(std::move(state));
-  }
+  // template <typename State> void set_state(State &&state) {
+  //   this->state = std::make_unique<State>(std::move(state));
+  // }
 };
 } // namespace as
