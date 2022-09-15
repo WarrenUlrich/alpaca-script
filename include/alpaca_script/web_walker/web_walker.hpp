@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bank.hpp"
-#include "banks.hpp"
+#include "banks/banks.hpp"
 #include "collision.hpp"
 #include "obstacle.hpp"
 #include "obstacles.hpp"

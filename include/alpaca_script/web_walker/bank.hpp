@@ -2,6 +2,8 @@
 
 #include <Game/Core.hpp>
 
+#include <alpaca_script/mouse_camera.hpp>
+
 namespace as::web_walker {
 class bank {
 public:
@@ -48,16 +50,23 @@ public:
 
   bank_booth(Tile &&location, Area &&area)
       : bank(std::move(location), std::move(area)) {}
-  
+
   bool open() const override {
+    if (Bank::IsOpen())
+      return true;
+
     auto obj = GameObjects::Get("Bank booth");
     if (!obj)
       return false;
 
+    if (obj.GetVisibility() < .5)
+      if (!as::mouse_camera::rotate_to(obj.GetTile()))
+        return false;
+
     if (!obj.Interact("Bank"))
       return false;
 
-    return WaitFunc(1000, 50, Bank::IsOpen);
+    return WaitFunc(2500, 50, Bank::IsOpen);
   }
 };
 } // namespace as::web_walker

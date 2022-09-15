@@ -20,7 +20,9 @@ public:
 
   Tile get_destination() const { return destination; }
 
-  virtual bool can_handle(const path_finder_settings &settings) const { return true; }
+  virtual bool can_handle(const path_finder_settings &settings) const {
+    return true;
+  }
 
   virtual bool handle() const = 0;
 
@@ -54,6 +56,43 @@ public:
     return true;
   }
 };
+
+class gate_obstacle : public obstacle {
+public:
+  Tile closed_position;
+
+  gate_obstacle() = default;
+
+  gate_obstacle(const gate_obstacle &other)
+      : obstacle(other), closed_position(other.closed_position) {}
+
+  gate_obstacle(gate_obstacle &&other)
+      : obstacle(std::move(other)),
+        closed_position(std::move(other.closed_position)) {}
+
+  gate_obstacle(Tile closed_position, Tile destination)
+      : obstacle(destination), closed_position(closed_position) {}
+
+  bool handle() const override {
+    auto gate = WallObjects::Get(closed_position);
+    if (gate) {
+      if (!gate.Interact("Open"))
+        return false;
+
+      if (!WaitFunc(2000, 50,
+                    [&]() { return !WallObjects::Get(closed_position); }))
+        return false;
+    }
+
+    if (!Mainscreen::ClickTile(destination))
+      return false;
+
+    return WaitFunc(2000, 50, [&]() {
+      return Players::GetLocal().GetTile() == destination;
+    });
+  }
+};
+
 class game_object_obstacle : public obstacle {
 public:
   Tile tile;

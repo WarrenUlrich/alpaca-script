@@ -1,9 +1,10 @@
 #pragma once
 
+#include <Core/Types/Tile.hpp>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include <Core/Types/Tile.hpp>
+#include <unordered_set>
 
 template <> struct std::hash<Tile> {
   std::size_t operator()(const Tile &tile) const {
@@ -17,9 +18,10 @@ template <> struct std::hash<Tile> {
 };
 
 namespace as::web_walker {
-  std::unordered_map<Tile, std::int32_t> collision_map;
+std::unordered_set<std::int32_t> mapped_regions;
+std::unordered_map<Tile, std::int32_t> collision_map;
 
-  void initialize(const std::filesystem::path &path_to_data) {
+void initialize(const std::filesystem::path &path_to_data) {
   if (path_to_data.empty()) {
     throw std::runtime_error("path_to_data is empty");
   }
@@ -42,10 +44,17 @@ namespace as::web_walker {
       continue;
     }
 
-    std::cout << "web_walker: "
-              << "Loading region " << dir_entry.path().stem() << '\n';
+    // std::cout << "web_walker: "
+    //           << "Loading region " << dir_entry.path().stem() << '\n';
 
-    auto ifs = std::ifstream(dir_entry.path());
+    if (!dir_entry.exists())
+      continue;
+
+    const auto stem = dir_entry.path().stem().generic_string();
+    const auto region = std::stoi(stem.substr(0, stem.find('_')));
+    mapped_regions.insert(region);
+
+    auto ifs = std::ifstream(dir_entry.path(), std::ios::in);
     if (!ifs) {
       throw std::runtime_error("failed to open " + dir_entry.path().string());
     }
@@ -71,4 +80,4 @@ void initialize() {
       std::filesystem::path(user_profile) / "AlpacaBot" / "Collision Data";
   initialize(path_to_data);
 }
-}
+} // namespace as::web_walker

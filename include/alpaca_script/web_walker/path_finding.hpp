@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <unordered_set>
 
+#include <alpaca_script/mouse_camera.hpp>
+
 #include "collision.hpp"
 #include "obstacle.hpp"
 #include "obstacles.hpp"
@@ -27,9 +29,6 @@ std::vector<path::value_type> get_neighbors(const Tile &tile) {
   std::vector<path::value_type> result;
 
   auto flags = collision_map.find(tile);
-  if (flags == collision_map.end()) {
-  }
-
   if (!(flags->second & Pathfinding::NORTH)) {
     auto north = tile + Tile(0, 1, 0);
 
@@ -57,6 +56,12 @@ std::int32_t is_collision(const Tile &tile) {
 }
 
 void visit_neighbors(const Tile &tile, auto &&func) {
+  // return ((std::int32_t) (((MyPos.X >> 6) << 8) | (MyPos.Y >> 6)));
+  auto region = ((tile.X >> 6) << 8) | (tile.Y >> 6);
+  if (mapped_regions.find(region) == mapped_regions.end()) {
+    return;
+  }
+
   auto flags = is_collision(tile);
 
   if (!(flags & Pathfinding::NORTH)) {
@@ -124,14 +129,20 @@ void visit_neighbors(const Tile &tile, auto &&func) {
 }
 
 path find_path(const Tile &start, const Tile &dest,
-               const path_finder_settings &settings = path_finder_settings()) {
+               const path_finder_settings &settings = get_player_settings()) {
 
   std::queue<std::shared_ptr<path_node>> queue;
   std::unordered_set<Tile> visited;
 
   queue.emplace(std::make_shared<path_node>(start, nullptr));
 
+  auto end_time = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+
   while (!queue.empty()) {
+    if (std::chrono::steady_clock::now() > end_time) {
+      throw std::runtime_error("timeout");
+    }
+
     auto current = std::move(queue.front());
     queue.pop();
 
@@ -188,64 +199,189 @@ path find_path(const Tile &start, const Tile &dest,
   throw std::runtime_error("no path found");
 }
 
-bool walk_path(const path &path, std::int32_t distance = 4) {
+// bool walk_path(const path &path, std::int32_t distance, const auto predicate)
+// {
+//   if (!Mainscreen::IsLoggedIn())
+//     return false;
+
+//   auto player = Players::GetLocal();
+//   if (!player)
+//     return false;
+
+//   auto player_tile = player.GetTile();
+//   auto closest = path.closest(player_tile, 10);
+//   if (closest == path.end())
+//     return false;
+
+//   std::int32_t attempts = 0;
+//   auto obstacle_iter = path.next_obstacle(closest, path.end());
+//   while (attempts <= 5) {
+//     if (!Mainscreen::IsLoggedIn())
+//       return false;
+
+//     if (predicate())
+//       return true;
+
+//     player = Players::GetLocal();
+//     if (!player)
+//       return false;
+
+//     player_tile = player.GetTile();
+//     auto end_tile = std::get<Tile>(path.back());
+
+//     if (player_tile.DistanceFrom(end_tile) <= distance &&
+//         player_tile.Plane == end_tile.Plane)
+//       return true;
+
+//     if (obstacle_iter.first != path.end()) {
+//       auto obs = obstacle_iter.second;
+//       if (obs->first.DistanceFrom(player_tile) <= 3) {
+//         if (!obs->second->handle()) {
+//           attempts++;
+//           if (attempts > 5)
+//             return false;
+
+//           std::cout << "Failed to handle obstacle, trying again.\n";
+//           closest = path.closest(player_tile, 10);
+//           if (closest == path.end())
+//             return false;
+
+//           obstacle_iter = path.next_obstacle(closest, path.end());
+//           continue;
+//         }
+
+//         obstacle_iter =
+//             path.next_obstacle(std::next(obstacle_iter.first), path.end());
+//         continue;
+//       }
+//     }
+
+//     auto furthest =
+//         path.furthest(closest, obstacle_iter.first, player.GetTile(), 13);
+
+//     if (furthest == path.end())
+//       return false;
+
+//     const auto reachable = [](const Tile &t) {
+//       // Check local pathfinding.
+//       return !Pathfinding::FindNodePathTo(t).empty();
+//     };
+
+//     if (auto tile = std::get_if<Tile>(&*furthest)) {
+//       if (!reachable(*tile)) {
+//         std::cout << "Not reachable\n";
+//         attempts++;
+//         if (attempts > 5)
+//           return false;
+
+//         closest = path.closest(player_tile, 10);
+//         if (closest == path.end())
+//           return false;
+
+//         obstacle_iter = path.next_obstacle(closest, path.end());
+//         continue;
+//       }
+
+//       as::mouse_camera::set_pitch(360, 20, 15);
+
+//       if (!Mainscreen::IsTileOn(*tile)) {
+//         if (!as::mouse_camera::rotate_to(*tile, 20))
+//           continue;
+//       }
+
+//       if (!Mainscreen::ClickTile(*tile))
+//         continue;
+
+//       if (!WaitFunc(1000, 50, Mainscreen::IsMoving))
+//         continue;
+
+//       const auto dest = Minimap::GetDestination();
+//       if (!dest)
+//         continue;
+
+//       WaitFunc(10000, 50, [&]() {
+//         if (Players::GetLocal().GetTile().DistanceFrom(dest) <= distance) {
+//           Wait(UniformRandom(100, 400));
+//           return true;
+//         }
+
+//         return false;
+//       });
+
+//     } else {
+//       std::cout << "Furthest is not a tile\n";
+//     }
+//   }
+//   return true;
+// }
+
+bool walk_path(const path &path, std::int32_t distance, const auto predicate) {
   if (!Mainscreen::IsLoggedIn())
     return false;
 
-  auto player = Players::GetLocal();
-  if (!player)
-    return false;
-
-  auto player_tile = player.GetTile();
-  auto closest = path.closest(player_tile, 10);
-  if (closest == path.end())
-    return false;
-
   std::int32_t attempts = 0;
-  auto obstacle_iter = path.next_obstacle(closest, path.end());
   while (attempts <= 5) {
     if (!Mainscreen::IsLoggedIn())
       return false;
 
-    player = Players::GetLocal();
-    if (!player)
-      return false;
-
-    player_tile = player.GetTile();
-    auto end_tile = std::get<Tile>(path.back());
-
-    if (player_tile.DistanceFrom(end_tile) <= 2)
+    if (predicate())
       return true;
 
+    auto player_pos = Minimap::GetPosition();
+    auto closest = path.closest(player_pos, 10);
+    if (closest == path.end())
+      return false;
+
+    auto end_tile = std::get<Tile>(path.back());
+
+    if (player_pos.DistanceFrom(end_tile) <= distance &&
+        player_pos.Plane == end_tile.Plane)
+      return true;
+
+    auto obstacle_iter = path.next_obstacle(closest, path.end());
     if (obstacle_iter.first != path.end()) {
       auto obs = obstacle_iter.second;
-      if (obs->first.DistanceFrom(player_tile) <= 2) {
+      if (obs->first.DistanceFrom(player_pos) <= 3) {
         if (!obs->second->handle()) {
           attempts++;
           if (attempts > 5)
             return false;
 
-          std::cout << "Failed to handle obstacle, trying again.\n";
-          closest = path.closest(player_tile, 10);
-          if (closest == path.end())
-            return false;
-
-          obstacle_iter = path.next_obstacle(closest, path.end());
+          Debug::Info << "Failed to handle obstacle, trying again.\n";
           continue;
         }
 
         obstacle_iter =
             path.next_obstacle(std::next(obstacle_iter.first), path.end());
-        continue;
       }
     }
 
+    // std::cout << "Here 1\n";
+    // Wait(1000);
+
+    player_pos = Minimap::GetPosition();
+    if (!player_pos)
+      continue;
+
+    // std::cout << "Here 2\n";
+    // Wait(1000);
+
+    closest = path.closest(player_pos, 10);
+    if (closest == path.end())
+      return false;
+
+    // std::cout << "Here 3\n";
+    // Wait(1000);
     auto furthest =
-        path.furthest(closest, obstacle_iter.first, player.GetTile(), 10);
+        obstacle_iter.first == path.end()
+            ? path.furthest(closest, path.end(), player_pos, 13)
+            : path.furthest(closest, obstacle_iter.first, player_pos, 13);
 
     if (furthest == path.end())
       return false;
 
+    // std::cout << "Here 4\n";
+    // Wait(1000);
     const auto reachable = [](const Tile &t) {
       // Check local pathfinding.
       return !Pathfinding::FindNodePathTo(t).empty();
@@ -253,21 +389,17 @@ bool walk_path(const path &path, std::int32_t distance = 4) {
 
     if (auto tile = std::get_if<Tile>(&*furthest)) {
       if (!reachable(*tile)) {
-        std::cout << "Not reachable\n";
+        Debug::Info << "Not reachable, error\n";
         attempts++;
         if (attempts > 5)
           return false;
-
-        closest = path.closest(player_tile, 10);
-        if (closest == path.end())
-          return false;
-
-        obstacle_iter = path.next_obstacle(closest, path.end());
         continue;
       }
 
+      as::mouse_camera::set_pitch(360, 20, 15);
+
       if (!Mainscreen::IsTileOn(*tile)) {
-        if (!Camera::RotateTo(*tile, Camera::NORTH, UniformRandom(10, 30)))
+        if (!as::mouse_camera::rotate_to(*tile, 20))
           continue;
       }
 
@@ -281,15 +413,23 @@ bool walk_path(const path &path, std::int32_t distance = 4) {
       if (!dest)
         continue;
 
-      if (WaitFunc(10000, 50, [&]() {
-            return Players::GetLocal().GetTile().DistanceFrom(dest) < distance;
-          })) {
-        return true;
-      }
+      WaitFunc(10000, 50, [&]() {
+        if (Players::GetLocal().GetTile().DistanceFrom(dest) <= distance) {
+          Wait(UniformRandom(100, 400));
+          return true;
+        }
+
+        return false;
+      });
     } else {
-      std::cout << "Furthest is not a tile\n";
+      Debug::Info << "Furthest is not a tile\n";
+      Wait(100);
     }
   }
   return true;
+}
+
+bool walk_path(const path &path, std::int32_t distance = 4) {
+  return walk_path(path, distance, []() { return false; });
 }
 } // namespace as::web_walker

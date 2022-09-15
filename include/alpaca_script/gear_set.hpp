@@ -46,9 +46,9 @@ public:
     return Interactable::Item();
   }
 
-  Interactable::Item in_equipment() const {
-    auto inventory = Equipment::GetItems();
-    for (const auto &item : inventory) {
+  Interactable::Item equipped() const {
+    auto equipment = Equipment::GetItems();
+    for (const auto &item : equipment) {
       if constexpr (std::is_same_v<Identifier, std::string> ||
                     std::is_same_v<Identifier, std::string_view>) {
         if (std::find(ids.begin(), ids.end(), item.GetName()) != ids.end())
@@ -64,12 +64,12 @@ public:
   bool equip() const {
     auto item = in_inventory();
     if (!item)
-      return in_equipment();
+      return equipped();
 
     if (!item.Interact(action))
       return equip();
 
-    return WaitFunc(1250, 50, [&]() { return in_equipment(); });
+    return WaitFunc(1250, 50, [&]() { return equipped(); });
   }
 };
 
@@ -117,7 +117,7 @@ public:
     return _gear[static_cast<std::size_t>(slot)];
   }
 
-  equippable<Identifier> &get(Equipment::SLOT slot) {
+  auto &get(Equipment::SLOT slot) {
     return _gear[static_cast<std::size_t>(slot)];
   }
 
@@ -145,7 +145,7 @@ public:
       if (!equip.has_value())
         continue;
 
-      if (!equip.value().in_equipment()) {
+      if (!equip.value().equipped()) {
         return false;
       }
     }
@@ -170,7 +170,7 @@ public:
       if (!equip.has_value())
         continue;
 
-      if (!equip.value().in_inventory() && !equip.value().in_equipment()) {
+      if (!equip.value().in_inventory() && !equip.value().equipped()) {
         return false;
       }
     }
